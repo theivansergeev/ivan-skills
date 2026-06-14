@@ -1,17 +1,18 @@
 # Скиллы Ивана Сергеева
 
 Готовые ИИ-сотрудники для Claude Code — для учеников вайбкодинга и вайбмаркетинга.
+Работает в Claude Code внутри VS Code (расширение) и в терминале.
 
-## Как установить (2 команды)
+## Как установить (проще всего)
 
-Открой Claude Code и напиши по очереди:
+Открой Claude в VS Code и напиши ему в чат одну фразу:
 
 ```
-/plugin marketplace add theivansergeev/ivan-skills
-/plugin install raspakovka@ivan-skills
+Установи мне скилл распаковки: выполни команду
+curl -fsSL https://raw.githubusercontent.com/theivansergeev/ivan-skills/main/install.sh | bash
 ```
 
-Готово. Скилл встал.
+Claude выполнит — скилл встанет в `~/.claude/skills/`. Перезагружать ничего не нужно.
 
 ## Как вызвать
 
@@ -21,14 +22,14 @@
 распакуй меня
 ```
 
-или командой:
-
-```
-/raspakovka:raspakovka-novichka
-```
+или командой `/raspakovka-novichka`.
 
 ## Что внутри
 
 | Скилл | Что делает |
 |---|---|
 | **Распаковка новичка** | Задаёт простые вопросы про тебя и на выходе показывает твои скрытые активы + что тебе можно продавать. Работает с чистого листа — ничего загружать не нужно. |
+
+---
+
+<sub>Скилл лежит в `plugins/raspakovka/skills/raspakovka-novichka/`. Установщик — `install.sh`. Структура совместима и с plugin-marketplace (для CLI-окружений, где доступна команда `/plugin`).</sub>
