@@ -13,6 +13,33 @@
       "author": {
         "name": "Ivan Sergeev"
       }
+    },
+    {
+      "name": "humaniser",
+      "source": "./plugins/humaniser",
+      "description": "Антиклише-фильтр: убирает нейросетевые клише из текста",
+      "version": "1.0.0",
+      "author": {
+        "name": "Ivan Sergeev"
+      }
+    },
+    {
+      "name": "naydi-viralku",
+      "source": "./plugins/naydi-viralku",
+      "description": "Find-only поиск виралок: ролики и карусели по теме",
+      "version": "1.0.0",
+      "author": {
+        "name": "Ivan Sergeev"
+      }
+    },
+    {
+      "name": "vibecoding",
+      "source": "./plugins/vibecoding",
+      "description": "Дисциплина разработки с ИИ: 12-стадийный проверяемый процесс",
+      "version": "1.0.0",
+      "author": {
+        "name": "Ivan Sergeev"
+      }
     }
   ]
 }
