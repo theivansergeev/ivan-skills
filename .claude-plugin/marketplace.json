@@ -40,6 +40,15 @@
       "author": {
         "name": "Ivan Sergeev"
       }
+    },
+    {
+      "name": "reel-to-script",
+      "source": "./plugins/reel-to-script",
+      "description": "Разбирает чужой залетевший ролик по кадрам в готовый воспроизводимый сценарий, по которому снимаешь свой",
+      "version": "1.3.0",
+      "author": {
+        "name": "Ivan Sergeev"
+      }
     }
   ]
 }
