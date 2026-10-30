@@ -45,7 +45,9 @@ jobs:
           Get-Content "$root\bootstrap.stdout.txt"
           Get-Content "$root\bootstrap.stderr.txt"
           if (Test-Path "$root\result.json") { Get-Content "$root\result.json" }
-          if ($process.ExitCode -ne 0) { throw "Native Windows test exited $($process.ExitCode)" }
+          $process.WaitForExit()
+          $result = Get-Content "$root\result.json" -Raw | ConvertFrom-Json
+          if ($result.status -ne 'response_received_review_required') { throw 'Native Windows verification did not produce all requested answers' }
       - name: Restore runner Git directory
         if: always()
         shell: powershell

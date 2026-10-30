@@ -90,6 +90,11 @@ class Terminal:
             time.sleep(.5)
             if self.p.isalive():
                 self.p.write('\x03')
+            end = time.monotonic() + 4
+            while self.p.isalive() and time.monotonic() < end:
+                time.sleep(.2)
+            if self.p.isalive():
+                subprocess.run(['taskkill', '/PID', str(self.p.pid), '/T', '/F'], capture_output=True, timeout=15)
         self.closed = True
 
 
@@ -112,6 +117,7 @@ def save_receipts():
         for line in logs.read_text(encoding='utf-8', errors='replace').splitlines():
             try:
                 row = json.loads(line)
+                row = row.get('record', {}).get('extra', row)
             except ValueError:
                 continue
             # Only non-secret request receipt fields are exported.
@@ -167,19 +173,48 @@ def main():
     wait_url('http://127.0.0.1:11435/api/tags')
     run_ps(r'''$env:OLLAMA_HOST='127.0.0.1:11435'; & "$env:LOCALAPPDATA\fcc-local\ollama-0.40.13\ollama.exe" pull qwen3:4b-instruct; if($LASTEXITCODE -ne 0){exit 1}''', 'model-pull')
     RESULT['models'] = wait_url('http://127.0.0.1:11435/api/tags')
-    server = refresh + r'''$env:MODEL='ollama/qwen3:4b-instruct'; $env:REASONING_POLICY='off'; $env:OLLAMA_BASE_URL='http://127.0.0.1:11435'; $env:HOST='127.0.0.1'; $env:FCC_OPEN_BROWSER='false'; fcc-server'''
+    server = refresh + r'''$env:MODEL='ollama/qwen3:4b-instruct'; $env:REASONING_POLICY='off'; $env:OLLAMA_BASE_URL='http://127.0.0.1:11435'; $env:HTTP_READ_TIMEOUT='900'; $env:PROVIDER_PROGRESS_TIMEOUT='1200'; $env:HOST='127.0.0.1'; $env:FCC_OPEN_BROWSER='false'; fcc-server'''
     fcc = Terminal(psargs(server), 'fcc-server')
     fcc.wait_for('Application startup complete', timeout=120)
     testdir = profile / ('fcc-first-run-' + str(int(time.time())))
     testdir.mkdir()
     q = PROMPT.replace("'", "''")
-    command = refresh + f"Set-Location -LiteralPath '{testdir}'; fcc-claude -p '{q}' --output-format json; if($LASTEXITCODE -ne 0){{exit 1}}"
+    client = refresh + "$env:CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT='1'; "
+    command = client + f"Set-Location -LiteralPath '{testdir}'; fcc-claude --tools Read -p '{q}' --output-format json; if($LASTEXITCODE -ne 0){{exit 1}}"
     RESULT['first_answer'] = run_ps(command, 'first-answer', timeout=900)
     fcc.stop()
     time.sleep(3)
     fcc = Terminal(psargs(server), 'fcc-restarted')
     fcc.wait_for('Application startup complete', timeout=120)
     RESULT['restart_answer'] = run_ps(command, 'restart-answer', timeout=900)
+    for key in ['first_answer', 'restart_answer']:
+        answer = json.loads(RESULT[key].strip())
+        assert not answer.get('is_error'), answer
+        assert 'Извините' in answer.get('result', '') and 'завтра' in answer.get('result', ''), answer
+    progress('interactive-first-launch')
+    chat = Terminal(psargs(client + f"Set-Location -LiteralPath '{testdir}'; fcc-claude --tools Read --ax-screen-reader"), 'interactive')
+    handled = set()
+    sent = False
+    end = time.monotonic() + 900
+    while time.monotonic() < end:
+        text = chat.pump()
+        for marker, key, response in [('Choose text style','theme','\r'), ('Security notes','security','\r'), ('Yes, I trust this folder','trust','\x1b[B\r')]:
+            if marker in text and key not in handled:
+                chat.p.write(response)
+                handled.add(key)
+                time.sleep(.5)
+        if not sent and 'API Usage Billing' in text:
+            chat.p.write(PROMPT + '\r')
+            sent = True
+        if sent and re.search(r'Извините[,!.][\s\S]{0,300}(?:завтра|обед)', text):
+            RESULT['interactive'] = {'screens_handled': sorted(handled), 'answer_seen': True}
+            break
+        if not chat.p.isalive():
+            raise RuntimeError('Interactive client exited: ' + text[-3000:])
+        time.sleep(.5)
+    else:
+        raise TimeoutError('Interactive reply: ' + chat.pump()[-3000:])
+    chat.stop()
     RESULT['receipts'] = save_receipts()
     RESULT['status'] = 'response_received_review_required'
 
@@ -199,5 +234,5 @@ finally:
             pass
     RESULT['finished'] = time.time()
     (ROOT / 'result.json').write_text(json.dumps(RESULT, ensure_ascii=False, indent=2), encoding='utf-8')
-if RESULT['status'] == 'failed':
-    raise SystemExit(1)
+# All evidence is flushed. Avoid waiting for a ConPTY reader during interpreter teardown.
+os._exit(1 if RESULT['status'] == 'failed' else 0)
