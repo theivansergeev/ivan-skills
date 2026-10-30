@@ -202,9 +202,12 @@ def main():
             if marker.lower() in text.lower() and key not in handled:
                 if key == 'trust':
                     assert testdir.name in text, 'Trust screen is not showing the new empty project'
-                    numbered = re.search(r'(?:^|\n)\s*(\d+)\.\s*(?:current:\s*)?Yes, I trust this folder',text,re.I)
-                    if numbered:
-                        response = numbered.group(1)+'\r'
+                    if 'Enter y/n:' in text:
+                        response = 'y\r'
+                    else:
+                        numbered = re.search(r'(?:^|\n)\s*(\d+)\.\s*(?:current:\s*)?Yes, I trust this folder',text,re.I)
+                        if numbered:
+                            response = numbered.group(1)+'\r'
                 chat.p.write(response)
                 handled.add(key)
                 progress('interactive-screen: '+key)
