@@ -2,7 +2,7 @@ name: FCC Windows guide verification
 on:
   push:
     branches: [verify/fcc-windows-20261030]
-    paths: [.github/workflows/fcc-windows-verification.yml, verification/**]
+    paths: [.github/workflows/fcc-windows-verification.yml, verification/windows-e2e.py]
 permissions:
   contents: read
 jobs:

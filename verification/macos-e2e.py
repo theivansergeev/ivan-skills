@@ -1,5 +1,5 @@
 """Fresh hosted macOS: native official installer and actual local inference."""
-import hashlib,json,os,pty,re,select,subprocess,time,traceback,urllib.request
+import fcntl,hashlib,json,os,pty,re,select,subprocess,termios,time,traceback,urllib.request
 from pathlib import Path
 
 OUT=Path('/private/tmp/FCCMacEvidence');OUT.mkdir(exist_ok=True)
@@ -17,7 +17,10 @@ def run(args,name,timeout=900):
 
 class Console:
     def __init__(self,args,name):
-        self.master,slave=pty.openpty();self.p=subprocess.Popen(args,env=env,stdin=slave,stdout=slave,stderr=slave,start_new_session=True);os.close(slave)
+        def controlling_tty():
+            os.setsid()
+            fcntl.ioctl(0,termios.TIOCSCTTY,0)
+        self.master,slave=pty.openpty();self.p=subprocess.Popen(args,env=env,stdin=slave,stdout=slave,stderr=slave,preexec_fn=controlling_tty);os.close(slave)
         self.text='';self.log=(OUT/(name+'.txt')).open('w');children.append(self)
     def pump(self):
         if select.select([self.master],[],[],.2)[0]:
