@@ -195,19 +195,26 @@ def main():
     chat = Terminal(psargs(client + f"Set-Location -LiteralPath '{testdir}'; fcc-claude --tools Read --ax-screen-reader"), 'interactive')
     handled = set()
     sent = False
-    end = time.monotonic() + 900
+    end = time.monotonic() + 300
     while time.monotonic() < end:
         text = chat.pump()
-        for marker, key, response in [('Choose text style','theme','\r'), ('Security notes','security','\r'), ('Yes, I trust this folder','trust','\x1b[B\r')]:
-            if marker in text and key not in handled:
+        for marker, key, response in [('text style that looks best','theme','2\r'), ('Security notes','security','\r'), ('Yes, I trust this folder','trust','\x1b[B\r')]:
+            if marker.lower() in text.lower() and key not in handled:
+                if key == 'trust':
+                    assert testdir.name in text, 'Trust screen is not showing the new empty project'
+                    numbered = re.search(r'(?:^|\n)\s*(\d+)\.\s*(?:current:\s*)?Yes, I trust this folder',text,re.I)
+                    if numbered:
+                        response = numbered.group(1)+'\r'
                 chat.p.write(response)
                 handled.add(key)
+                progress('interactive-screen: '+key)
                 time.sleep(.5)
-        if not sent and 'API Usage Billing' in text:
+        if not sent and 'api usage billing' in text.lower():
             chat.p.write(PROMPT + '\r')
             sent = True
         if sent and re.search(r'Извините[,!.][\s\S]{0,300}(?:завтра|обед)', text):
             RESULT['interactive'] = {'screens_handled': sorted(handled), 'answer_seen': True}
+            time.sleep(2)
             break
         if not chat.p.isalive():
             raise RuntimeError('Interactive client exited: ' + text[-3000:])
