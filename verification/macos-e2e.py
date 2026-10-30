@@ -57,18 +57,16 @@ try:
     assert not (profile/'.fcc').exists()
     assert not (profile/'.claude').exists()
     (profile/'Downloads').mkdir(exist_ok=True)
-    installer=profile/'Downloads/free-claude-code-install.sh'
-    run(['/usr/bin/curl','-fL','https://raw.githubusercontent.com/Alishahryar1/free-claude-code/v6.18.5/scripts/install.sh','-o',str(installer)],'download-installer')
-    result['installer_sha256']=hashlib.sha256(installer.read_bytes()).hexdigest()
-    env['FCC_INSTALL_VERSION']='6.18.5'
-    term=Console(['/bin/sh',str(installer)],'installer')
-    for label in ['Claude Code','Codex','Pi','OpenCode','Cline CLI','Hermes Agent','DeepSeek Harness','Grok Build','Muse Code','Aider','Antigravity CLI']:
-        term.wait('Install '+label+' for')
-        os.write(term.master,('y\n' if label=='Claude Code' else 'n\n').encode())
-    term.wait('Enable RTK + Headroom');os.write(term.master,b'n\n')
-    end=time.monotonic()+900
-    while term.p.poll() is None and time.monotonic()<end:term.pump()
-    term.pump();assert term.p.poll()==0,term.text[-3000:]
+    # Avoid the confirmed +gil selector failure in FCC's macOS shell installer.
+    # Use the same official native client, package and exact CPython version directly.
+    uv_installer=profile/'Downloads/fcc-uv-install.sh'
+    run(['/usr/bin/curl','-fL','https://astral.sh/uv/0.13.6/install.sh','-o',str(uv_installer)],'download-uv-installer')
+    run(['/bin/sh',str(uv_installer)],'install-uv')
+    client_installer=profile/'Downloads/fcc-claude-install.sh'
+    run(['/usr/bin/curl','-fL','https://claude.ai/install.sh','-o',str(client_installer)],'download-client-installer')
+    run(['/bin/bash',str(client_installer),'2.1.314'],'install-client')
+    run([str(profile/'.local/bin/uv'),'tool','install','--managed-python','--python','3.14.10','free-claude-code==6.18.5'],'install-fcc')
+    run([str(profile/'.local/bin/uv'),'tool','update-shell'],'update-shell')
     env['PATH']=str(profile/'.local/bin')+':'+env['PATH']
     result['versions']=run(['/bin/sh','-c','fcc-server --version;claude --version;uv --version'],'versions')
     ollama=profile/'fcc-local/ollama-0.40.13';ollama.mkdir(parents=True)
