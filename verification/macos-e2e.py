@@ -90,6 +90,9 @@ try:
         text=run(args,name,timeout=900);answer=json.loads(text.strip());assert not answer.get('is_error'),answer
         assert 'Извините' in answer.get('result','') and 'завтра' in answer.get('result',''),answer
         result[name]=answer
+    reader_args=[str(profile/'.local/bin/fcc-claude'),'--tools','Read','-p',prompt]
+    result['reader_plain_text']=run(reader_args,'reader-plain-text',timeout=300)
+    assert 'Извините' in result['reader_plain_text'] and 'завтра' in result['reader_plain_text']
     result['status']='response_received_review_required'
 except Exception:result.update(status='failed',error=traceback.format_exc())
 finally:

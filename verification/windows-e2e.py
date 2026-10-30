@@ -191,40 +191,18 @@ def main():
         answer = json.loads(RESULT[key].strip())
         assert not answer.get('is_error'), answer
         assert 'Извините' in answer.get('result', '') and 'завтра' in answer.get('result', ''), answer
-    progress('interactive-first-launch')
-    chat = Terminal(psargs(client + f"Set-Location -LiteralPath '{testdir}'; fcc-claude --tools Read --ax-screen-reader"), 'interactive')
-    handled = set()
-    sent = False
+    progress('reader-plain-text-output')
+    reader_command = command.replace(' --output-format json', '')
+    console = Terminal(psargs(reader_command), 'reader-plain-text')
     end = time.monotonic() + 300
-    while time.monotonic() < end:
-        text = chat.pump()
-        for marker, key, response in [('text style that looks best','theme','2\r'), ('Security notes','security','\r'), ('Yes, I trust this folder','trust','\x1b[B\r')]:
-            if marker.lower() in text.lower() and key not in handled:
-                if key == 'trust':
-                    assert testdir.name in text, 'Trust screen is not showing the new empty project'
-                    if 'Enter y/n:' in text:
-                        response = 'y\r'
-                    else:
-                        numbered = re.search(r'(?:^|\n)\s*(\d+)\.\s*(?:current:\s*)?Yes, I trust this folder',text,re.I)
-                        if numbered:
-                            response = numbered.group(1)+'\r'
-                chat.p.write(response)
-                handled.add(key)
-                progress('interactive-screen: '+key)
-                time.sleep(.5)
-        if not sent and 'api usage billing' in text.lower():
-            chat.p.write(PROMPT + '\r')
-            sent = True
-        if sent and re.search(r'Извините[,!.][\s\S]{0,300}(?:завтра|обед)', text):
-            RESULT['interactive'] = {'screens_handled': sorted(handled), 'answer_seen': True}
-            time.sleep(2)
-            break
-        if not chat.p.isalive():
-            raise RuntimeError('Interactive client exited: ' + text[-3000:])
-        time.sleep(.5)
-    else:
-        raise TimeoutError('Interactive reply: ' + chat.pump()[-3000:])
-    chat.stop()
+    while console.p.isalive() and time.monotonic() < end:
+        console.pump()
+        time.sleep(.2)
+    text = console.pump()
+    assert not console.p.isalive(), 'Reader one-shot command did not return'
+    assert 'Извините' in text and 'завтра' in text, text[-3000:]
+    RESULT['reader_plain_text'] = text
+    RESULT['interactive'] = {'tested': False, 'reason': 'Article first-response path uses the official one-shot -p mode'}
     RESULT['receipts'] = save_receipts()
     RESULT['status'] = 'response_received_review_required'
 
