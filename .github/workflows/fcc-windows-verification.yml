@@ -1,0 +1,64 @@
+name: FCC Windows guide verification
+on:
+  push:
+    branches: [verify/fcc-windows-20261030]
+    paths: [.github/workflows/fcc-windows-verification.yml, verification/**]
+permissions:
+  contents: read
+jobs:
+  native-windows:
+    runs-on: windows-2025
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Prepare isolated test harness and new Windows user
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = 'C:\FCCGuideHarness'
+          New-Item -ItemType Directory $root -Force | Out-Null
+          Copy-Item verification\windows-e2e.py "$root\windows-e2e.py"
+          python -m venv "$root\venv"
+          & "$root\venv\Scripts\python.exe" -m pip install pywinpty
+          if ($LASTEXITCODE -ne 0) { throw 'Harness installation failed' }
+          # This is a new disposable VM, but the runner image includes Git.
+          # Preserve it outside the normal lookup location for the clean-user test.
+          if (Test-Path 'C:\Program Files\Git') {
+            Move-Item 'C:\Program Files\Git' 'C:\Program Files\Git.FCC-preserved'
+          }
+          $password = [guid]::NewGuid().ToString('N') + 'aA!9'
+          $secure = ConvertTo-SecureString $password -AsPlainText -Force
+          New-LocalUser -Name FCCGuideTest -Password $secure -AccountNeverExpires | Out-Null
+          $sid = (Get-LocalUser FCCGuideTest).SID.Value
+          icacls $root /grant "*${sid}:(OI)(CI)M" | Out-Null
+          $credential = New-Object Management.Automation.PSCredential("$env:COMPUTERNAME\FCCGuideTest", $secure)
+          $command = '& "C:\FCCGuideHarness\venv\Scripts\python.exe" "C:\FCCGuideHarness\windows-e2e.py"'
+          $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($command))
+          $process = Start-Process "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -Credential $credential -LoadUserProfile -ArgumentList @('-NoProfile','-EncodedCommand',$encoded) -PassThru -RedirectStandardOutput "$root\bootstrap.stdout.txt" -RedirectStandardError "$root\bootstrap.stderr.txt"
+          while (-not $process.HasExited) {
+            if (Test-Path "$root\progress.txt") { Get-Content "$root\progress.txt" -Tail 2 }
+            Start-Sleep -Seconds 20
+            $process.Refresh()
+          }
+          Get-Content "$root\bootstrap.stdout.txt"
+          Get-Content "$root\bootstrap.stderr.txt"
+          if (Test-Path "$root\result.json") { Get-Content "$root\result.json" }
+          if ($process.ExitCode -ne 0) { throw "Native Windows test exited $($process.ExitCode)" }
+      - name: Restore runner Git directory
+        if: always()
+        shell: powershell
+        run: |
+          if ((Test-Path 'C:\Program Files\Git.FCC-preserved') -and -not (Test-Path 'C:\Program Files\Git')) {
+            Move-Item 'C:\Program Files\Git.FCC-preserved' 'C:\Program Files\Git'
+          }
+      - name: Preserve verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fcc-native-windows-evidence
+          path: |
+            C:\FCCGuideHarness\*.txt
+            C:\FCCGuideHarness\*.json
+          retention-days: 7
