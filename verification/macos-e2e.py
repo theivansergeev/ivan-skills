@@ -4,7 +4,8 @@ from pathlib import Path
 
 OUT=Path('/private/tmp/FCCMacEvidence');OUT.mkdir(exist_ok=True)
 profile=Path.home()
-env={k:os.environ[k] for k in ['HOME','USER','LOGNAME','TMPDIR','LANG'] if k in os.environ}
+env={k:os.environ[k] for k in ['HOME','USER','LOGNAME','TMPDIR','LANG','SHELL'] if k in os.environ}
+env.setdefault('SHELL','/bin/zsh')
 env['PATH']='/usr/bin:/bin:/usr/sbin:/sbin';env['TERM']='xterm-256color'
 children=[];result={'status':'running','started':time.time()}
 prompt='Напиши одно короткое вежливое сообщение клиенту по-русски: сегодня не успеваю закончить задачу, пришлю её завтра к обеду. Начни словом «Извините». Дай только текст сообщения'
@@ -67,6 +68,7 @@ try:
     run(['/bin/bash',str(client_installer),'2.1.314'],'install-client')
     run([str(profile/'.local/bin/uv'),'tool','install','--managed-python','--python','3.14.10','free-claude-code==6.18.5'],'install-fcc')
     run([str(profile/'.local/bin/uv'),'tool','update-shell'],'update-shell')
+    result['fresh_login']=run([env['SHELL'],'-lc','command -v fcc-server && fcc-server --version && command -v claude'],'fresh-login')
     env['PATH']=str(profile/'.local/bin')+':'+env['PATH']
     result['versions']=run(['/bin/sh','-c','fcc-server --version;claude --version;uv --version'],'versions')
     ollama=profile/'fcc-local/ollama-0.40.13';ollama.mkdir(parents=True)
