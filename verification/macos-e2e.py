@@ -54,7 +54,7 @@ def ready(url):
     raise TimeoutError(url)
 
 try:
-    result['baseline']=run(['/bin/sh','-c','sw_vers;uname -m;for c in claude uv fcc-server ollama;do command -v "$c" || true;done'],'baseline')
+    result['baseline']=run(['/bin/sh','-c','sw_vers;uname -m;sysctl hw.memsize hw.ncpu;for c in claude uv fcc-server ollama;do command -v "$c" || true;done'],'baseline')
     assert not (profile/'.fcc').exists()
     assert not (profile/'.claude').exists()
     (profile/'Downloads').mkdir(exist_ok=True)
