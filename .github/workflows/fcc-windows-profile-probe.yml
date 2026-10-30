@@ -1,0 +1,58 @@
+name: FCC Windows profile probe
+on:
+  push:
+    branches: [verify/fcc-windows-20261030]
+    paths: [.github/workflows/fcc-windows-profile-probe.yml]
+permissions:
+  contents: read
+jobs:
+  profile:
+    runs-on: windows-2025
+    timeout-minutes: 5
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root='C:\FCCProfileProbe'
+          New-Item -ItemType Directory $root | Out-Null
+          python -m venv "$root\venv"
+          & "$root\venv\Scripts\python.exe" -m pip install --only-binary=:all: pywinpty
+          if($LASTEXITCODE -ne 0){throw 'pip failed'}
+          @'
+          import os,subprocess,time
+          from pathlib import Path
+          from winpty import PtyProcess
+          print('IDENTITY',subprocess.check_output(['whoami'],text=True).strip(),flush=True)
+          print('PROFILE',str(Path.home()),flush=True)
+          print('BEFORE_CONPTY',flush=True)
+          p=PtyProcess.spawn([r'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe','-NoProfile','-Command',"Write-Output ('INPUT_REDIRECTED='+[Console]::IsInputRedirected);Write-Output ('OUTPUT_REDIRECTED='+[Console]::IsOutputRedirected);Write-Output 'CONPTY_OK'"],dimensions=(30,120))
+          print('AFTER_CONPTY',flush=True)
+          while p.isalive():
+              try:print(p.read(),flush=True)
+              except EOFError:break
+          print('DONE',flush=True)
+          '@ | Set-Content "$root\probe.py" -Encoding UTF8
+          $secure=ConvertTo-SecureString ([guid]::NewGuid().ToString('N')+'aA!9') -AsPlainText -Force
+          New-LocalUser -Name FCCProbe -Password $secure | Out-Null
+          $sid=(Get-LocalUser FCCProbe).SID.Value
+          icacls $root /grant "*${sid}:(OI)(CI)M" | Out-Null
+          $credential=New-Object Management.Automation.PSCredential("$env:COMPUTERNAME\FCCProbe",$secure)
+          $command='& "C:\FCCProfileProbe\venv\Scripts\python.exe" "C:\FCCProfileProbe\probe.py"'
+          $encoded=[Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($command))
+          Write-Output 'BEFORE_START_PROCESS'
+          $p=Start-Process "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -Credential $credential -LoadUserProfile -ArgumentList @('-NoProfile','-EncodedCommand',$encoded) -PassThru -RedirectStandardOutput "$root\out.txt" -RedirectStandardError "$root\err.txt"
+          Write-Output 'AFTER_START_PROCESS'
+          $finished=$p.WaitForExit(30000)
+          Get-Content "$root\out.txt"
+          Get-Content "$root\err.txt"
+          Write-Output "FINISHED=$finished"
+          if(-not $finished){Stop-Process -Id $p.Id;throw 'Profile probe timeout'}
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fcc-windows-profile-probe
+          path: C:\FCCProfileProbe\*.txt
+          retention-days: 7
